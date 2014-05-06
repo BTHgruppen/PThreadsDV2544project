@@ -15,11 +15,18 @@ matrix	A;				// matrix A.
 double	b[MAX_SIZE];	// vector b.
 double	y[MAX_SIZE];	// vector y.
 
-void work(void);
+void Work(void);
 void Init_Matrix(void);
 void Print_Matrix(void);
-void Init_Default(void);
-int Read_Options(int, char **);
+void Read_Options(int, char **);
+
+void Init_Default()
+{
+    N = 5;
+    Init = "rand";
+    maxnum = 15.0;
+    PRINT = 1;
+}
 
 int main(int argc, char **argv)
 {
@@ -39,8 +46,12 @@ int main(int argc, char **argv)
 
     if (PRINT == 1)
 	{
+		printf("===== AFTER GUASSIAN ELIMINATION ======\n");
 		Print_Matrix();
+		printf("=======================================\n\n");
 	}
+
+	system("pause");
 }
 
 void Work(void)
@@ -76,11 +87,12 @@ void Work(void)
 void Init_Matrix()
 {
     int i, j;
- 
-    printf("\nsize      = %dx%d ", N, N);
-    printf("\nmaxnum    = %d \n", maxnum);
+
+ 	printf("Mode      = Parallell");
+    printf("Size      = %dx%d ", N, N);
+    printf("\nMaxnum    = %d \n", maxnum);
     printf("Init	  = %s \n", Init);
-    printf("Initializing matrix...");
+    printf("Initializing matrix...\n");
  
     if (strcmp(Init, "rand") == 0) 
 	{
@@ -129,10 +141,11 @@ void Init_Matrix()
 		y[i] = 1.0;
     }
 
-    printf("done \n\n");
+    printf("Done!\n\n");
 
     if (PRINT == 1)
 	{
+		printf("===== BEFORE GUASSIAN ELIMINATION =====\n");
 		Print_Matrix();
 	}
 }
@@ -141,7 +154,7 @@ void Print_Matrix()
 {
     int i, j;
  
-    printf("Matrix A:\n");
+    printf("\nMatrix A:\n");
 
     for (i = 0; i < N; i++) 
 	{
@@ -155,7 +168,7 @@ void Print_Matrix()
 		printf("]\n");
     }
 
-    printf("Vector b:\n[");
+    printf("\nVector b:\n[");
 
     for (j = 0; j < N; j++)
 	{
@@ -163,7 +176,7 @@ void Print_Matrix()
 	}
 
     printf("]\n");
-    printf("Vector y:\n[");
+    printf("\nVector y:\n[");
 
     for (j = 0; j < N; j++)
 	{
@@ -171,18 +184,10 @@ void Print_Matrix()
 	}
 
     printf("]\n");
-    printf("\n\n");
-}
-
-void Init_Default()
-{
-    N = 2048;
-    Init = "rand";
-    maxnum = 15.0;
-    PRINT = 0;
+    printf("\n");
 }
  
-int Read_Options(int argc, char **argv)
+void Read_Options(int argc, char **argv)
 {
     char *prog;
     prog = *argv;
