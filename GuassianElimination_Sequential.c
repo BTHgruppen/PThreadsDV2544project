@@ -89,7 +89,7 @@ void Init_Matrix()
     int i, j;
  
 	printf("Mode      = Sequential");
-    printf("Size      = %dx%d ", N, N);
+    printf("\nSize      = %dx%d ", N, N);
     printf("\nMaxnum    = %d \n", maxnum);
     printf("Init	  = %s \n", Init);
     printf("Initializing matrix...\n");

@@ -2,18 +2,19 @@
 //		    PARALLELL GAUSSIAN ELIMINATION			//
 //==================================================//
 #include <stdio.h>
+//#include <pthread.h>
 
-#define MAX_SIZE 4096
+#define MAX_SIZE 5
 
 typedef double matrix[MAX_SIZE][MAX_SIZE];
 
 int	N;					// Matrix size.
 int	maxnum;				// max number of element.
-char	*Init;			// matrix init type.
-int	PRINT;				// print switch.
-matrix	A;				// matrix A.
-double	b[MAX_SIZE];	// vector b.
-double	y[MAX_SIZE];	// vector y.
+char *Init;				// matrix init type.
+int PRINT;				// print switch.
+matrix A;				// matrix A.
+double b[MAX_SIZE];		// vector b.
+double y[MAX_SIZE];		// vector y.
 
 void Work(void);
 void Init_Matrix(void);
@@ -89,7 +90,7 @@ void Init_Matrix()
     int i, j;
 
  	printf("Mode      = Parallell");
-    printf("Size      = %dx%d ", N, N);
+    printf("\nSize      = %dx%d ", N, N);
     printf("\nMaxnum    = %d \n", maxnum);
     printf("Init	  = %s \n", Init);
     printf("Initializing matrix...\n");
