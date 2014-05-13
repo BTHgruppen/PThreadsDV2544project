@@ -2,9 +2,11 @@
 //		    PARALLELL GAUSSIAN ELIMINATION			//
 //==================================================//
 #include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
+#include <mpi.h>
 
-#define MAX_SIZE 8
+#define MAX_SIZE 2048
 #define THREADS 8
 
 typedef double matrix[MAX_SIZE][MAX_SIZE];
@@ -19,17 +21,17 @@ double y[MAX_SIZE];		// vector y.
 
 // Thread variables.
 pthread_t thread[THREADS];
-pthread_attr_t attributes;
-struct ThreadData
+typedef struct
 {
-	int ID;
 	int k;
-	int offset;
-};
-ThreadData data;
+	int start;
+	int stop;
+} ThreadData;
+
+ThreadData threadData[THREADS];
 
 void Work(void);
-void* ThreadWork(void* ID);
+void* ThreadWork(void*);
 void Init_Matrix(void);
 void Print_Matrix(void);
 void Read_Options(int, char **);
@@ -39,16 +41,25 @@ void Init_Default()
     N = MAX_SIZE;
     Init = "rand";
     maxnum = 15.0;
-    PRINT = 1;
+    PRINT = 0;
 }
 
 int main(int argc, char **argv)
 {
-    int i, timestart, timeend, iter, x, y;
- 
+	MPI_Init(&argc, &argv);
+	double start_time, end_time;
+
+    int i;
+
+	for(i = 0; i < THREADS; i++)
+	{
+		threadData[i].k = 0;
+		threadData[i].start = 0;
+		threadData[i].stop = 0;
+	}
+
 	// Init default values.
     Init_Default();
-	pthread_attr_init(&attributes);
 
 	// Read arguments.
     Read_Options(argc, argv);
@@ -56,8 +67,14 @@ int main(int argc, char **argv)
 	// Init the matrix.
     Init_Matrix();
 
+	// Start timer.
+	start_time = MPI_Wtime();
+
 	// Do guassian elimination.
     Work();
+
+	// Stop timer.
+	end_time = MPI_Wtime();
 
     if (PRINT == 1)
 	{
@@ -66,13 +83,13 @@ int main(int argc, char **argv)
 		printf("=======================================\n\n");
 	}
 
-	system("pause");
+	double time_taken = (end_time - start_time);
+	printf("Execution time: %f\n", time_taken);
 }
 
 void Work(void)
 {
-    int i, j, k;
-	
+    int i, j, k, offset;
 
     // Gaussian elimination algorithm, Algo 8.4 from Grama.
     for (k = 0; k < N; k++) 
@@ -86,29 +103,48 @@ void Work(void)
 		y[k] = b[k] / A[k][k];
 		A[k][k] = 1.0;
 
-		int offset = (N - (k+1)) / THREADS;
+		// Calculate offset
+		offset = (N - (k+1)) / THREADS;
 
-		for(i = 0; i < THREADS; i++)
+		// Thread the elimination step.
+		for(i = 0; i < (THREADS - 1); i++)
 		{
-			pthread_create(&thread[i], &attributes, ThreadWork, (void *)data);
+			// Set data and create the thread.
+			threadData[i].k = k;
+			threadData[i].start	= (k + 1) + (offset * i);
+			threadData[i].stop	= (k + 1) + (offset * (i + 1));
+			pthread_create(&thread[i], NULL, ThreadWork, (void*)&threadData[i]);
+		}
+
+		// Set data, and create last thread.
+		threadData[(THREADS - 1)].k = k;
+		threadData[(THREADS - 1)].start	= (k + 1) + (offset * (THREADS - 1));
+		threadData[(THREADS - 1)].stop	= N;
+		pthread_create(&thread[THREADS - 1], NULL, ThreadWork, (void*)&threadData[(THREADS - 1)]);
+
+		// Wait for all threads to terminate.
+		for (i = 0; i < THREADS; i++)
+		{
+			pthread_join(thread[i], NULL);
 		}
     }
 }
 
 void* ThreadWork(void* input)
 {
-	ThreadData data = (ThreadData) input;
+	int i, j;
+	ThreadData threadData = *(ThreadData*) input;
 		
-	for (i = k+1; i < N; i++) 
+	for (i = threadData.start; i < threadData.stop; i++) 
 	{
-		for (j = k+1; j < N; j++)
+		for (j = threadData.k+1; j < N; j++)
 		{
 			// Elimination step.
-			A[i][j] = A[i][j] - A[i][k]*A[k][j]; 
+			A[i][j] = A[i][j] - A[i][threadData.k] * A[threadData.k][j]; 
 		}
 
-		b[i] = b[i] - A[i][k]*y[k];
-		A[i][k] = 0.0;
+		b[i] = b[i] - A[i][threadData.k] * y[threadData.k];
+		A[i][threadData.k] = 0.0;
 	}
 }
 

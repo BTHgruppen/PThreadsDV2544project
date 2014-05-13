@@ -2,18 +2,19 @@
 //		    SEQUENTIAL GAUSSIAN ELIMINATION			//
 //==================================================//
 #include <stdio.h>
+#include <mpi.h>
 
-#define MAX_SIZE 4096
+#define MAX_SIZE 2048
 
 typedef double matrix[MAX_SIZE][MAX_SIZE];
 
 int	N;					// Matrix size.
 int	maxnum;				// max number of element.
-char	*Init;			// matrix init type.
+char *Init;			// matrix init type.
 int	PRINT;				// print switch.
-matrix	A;				// matrix A.
-double	b[MAX_SIZE];	// vector b.
-double	y[MAX_SIZE];	// vector y.
+matrix A;				// matrix A.
+double b[MAX_SIZE];	// vector b.
+double y[MAX_SIZE];	// vector y.
 
 void Work(void);
 void Init_Matrix(void);
@@ -22,15 +23,18 @@ void Read_Options(int, char **);
 
 void Init_Default()
 {
-    N = 5;
+    N = 2048;
     Init = "rand";
     maxnum = 15.0;
-    PRINT = 1;
+    PRINT = 0;
 }
 
 int main(int argc, char **argv)
 {
-    int i, timestart, timeend, iter;
+	MPI_Init(&argc, &argv);
+	double start_time, end_time;
+
+    int i;
  
 	// Init default values.
     Init_Default();
@@ -41,8 +45,14 @@ int main(int argc, char **argv)
 	// Init the matrix.
     Init_Matrix();
 
+	// Start timer.
+	start_time = MPI_Wtime();
+
 	// Do guassian elimination.
     Work();
+
+	// Stop timer.
+	end_time = MPI_Wtime();
 
     if (PRINT == 1)
 	{
@@ -51,7 +61,8 @@ int main(int argc, char **argv)
 		printf("=======================================\n\n");
 	}
 
-	system("pause");
+	double time_taken = (end_time - start_time);
+	printf("Execution time: %f\n", time_taken);
 }
 
 void Work(void)

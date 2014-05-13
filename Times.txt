@@ -1,0 +1,3 @@
+Sequential Gaussian: 23.999970 seconds
+
+Parallell Gaussian: 5.088972 seconds
