@@ -2,9 +2,10 @@
 //		    PARALLELL GAUSSIAN ELIMINATION			//
 //==================================================//
 #include <stdio.h>
-//#include <pthread.h>
+#include <pthread.h>
 
-#define MAX_SIZE 5
+#define MAX_SIZE 8
+#define THREADS 8
 
 typedef double matrix[MAX_SIZE][MAX_SIZE];
 
@@ -16,14 +17,26 @@ matrix A;				// matrix A.
 double b[MAX_SIZE];		// vector b.
 double y[MAX_SIZE];		// vector y.
 
+// Thread variables.
+pthread_t thread[THREADS];
+pthread_attr_t attributes;
+struct ThreadData
+{
+	int ID;
+	int k;
+	int offset;
+};
+ThreadData data;
+
 void Work(void);
+void* ThreadWork(void* ID);
 void Init_Matrix(void);
 void Print_Matrix(void);
 void Read_Options(int, char **);
 
 void Init_Default()
 {
-    N = 5;
+    N = MAX_SIZE;
     Init = "rand";
     maxnum = 15.0;
     PRINT = 1;
@@ -31,10 +44,11 @@ void Init_Default()
 
 int main(int argc, char **argv)
 {
-    int i, timestart, timeend, iter;
+    int i, timestart, timeend, iter, x, y;
  
 	// Init default values.
     Init_Default();
+	pthread_attr_init(&attributes);
 
 	// Read arguments.
     Read_Options(argc, argv);
@@ -58,6 +72,7 @@ int main(int argc, char **argv)
 void Work(void)
 {
     int i, j, k;
+	
 
     // Gaussian elimination algorithm, Algo 8.4 from Grama.
     for (k = 0; k < N; k++) 
@@ -71,18 +86,30 @@ void Work(void)
 		y[k] = b[k] / A[k][k];
 		A[k][k] = 1.0;
 
-		for (i = k+1; i < N; i++) 
-		{
-			for (j = k+1; j < N; j++)
-			{
-				// Elimination step.
-				A[i][j] = A[i][j] - A[i][k]*A[k][j]; 
-			}
+		int offset = (N - (k+1)) / THREADS;
 
-			b[i] = b[i] - A[i][k]*y[k];
-			A[i][k] = 0.0;
+		for(i = 0; i < THREADS; i++)
+		{
+			pthread_create(&thread[i], &attributes, ThreadWork, (void *)data);
 		}
     }
+}
+
+void* ThreadWork(void* input)
+{
+	ThreadData data = (ThreadData) input;
+		
+	for (i = k+1; i < N; i++) 
+	{
+		for (j = k+1; j < N; j++)
+		{
+			// Elimination step.
+			A[i][j] = A[i][j] - A[i][k]*A[k][j]; 
+		}
+
+		b[i] = b[i] - A[i][k]*y[k];
+		A[i][k] = 0.0;
+	}
 }
 
 void Init_Matrix()
