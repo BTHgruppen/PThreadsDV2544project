@@ -6,7 +6,7 @@
 #include <pthread.h>
 #include <mpi.h>
 
-#define MAX_SIZE 2048
+#define MAX_SIZE 8
 #define THREADS 8
 
 typedef double matrix[MAX_SIZE][MAX_SIZE];

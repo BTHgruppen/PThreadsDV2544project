@@ -1,0 +1,35 @@
+-------------------------
+PTHREADS Buffers
+-------------------------
+
+Size: x
+
+Non-Scaling Buffer: x seconds
+
+Scaling Buffer: x seconds
+
+-------------------------
+
+
+-------------------------
+PTHREADS Gaussian Elimination
+-------------------------
+
+Size: 2048 x 2048 matrix
+
+Sequential Gaussian: 24.0000 seconds
+
+Parallell Gaussian (8): 5.0890 seconds
+
+-------------------------
+
+
+-------------------------
+PTHREADS Compile Commands
+-------------------------
+
+mpicc -o buffer BoundedBuffer_Scaling.c -pthread
+
+mpicc -o gauss GuassianElimination_Parallell.c -pthread
+
+-------------------------

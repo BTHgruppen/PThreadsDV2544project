@@ -10,6 +10,6 @@ Tasks:
 --------------------------------------------------
 1. Implement a scalable bounded buffer using pthreads [JOBBA I "BoundedBuffer_Scaling.c"].
 
-Compile Gaussian code using: mpicc -o name file.c -pthread
+Notes on how to compile the files can be found in Notes.txt
 
 --------------------------------------------------
