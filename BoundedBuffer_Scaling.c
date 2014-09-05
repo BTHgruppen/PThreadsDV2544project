@@ -16,16 +16,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <time.h>
+#include <sys/time.h>
+#include <unistd.h>
 
-#define NO_PRODUCERS 4 //16
-#define NO_CONSUMERS 4 //32
+#define NO_PRODUCERS 1 //16
+#define NO_CONSUMERS 1 //32
 #define KILO 1024
 #define MEGA (KILO*KILO)
-#define ITEMS_TO_SEND 8*KILO // number of items to pass through the buffer.
+#define ITEMS_TO_SEND 800 *KILO // number of items to pass through the buffer.
 #define DEBUG 1
 
-static int NUM_BUFFERS = 2;
+static int NUM_BUFFERS = 1;
 static int BUFFER_SIZE = 20;
 
 
@@ -172,21 +173,25 @@ void *consumer(void *thr_id)
 	}
 
 
-	if (my_id == 0)
-		printf("[C0] All done!\n");
+	//if (my_id == 0)
+	//	printf("[C0] All done!\n");
+
 
 	if (print_flag)
 	{
 		printf("CBreak 4: tid %ld\n", (long)thr_id);
 	}
 
+	printf("Consumer %d is ready to be joined.\n", my_id);
 	pthread_exit(0);
 }
 
 // Producer code.
 void *producer(void *thr_id)
 {
-	
+	int item;
+	int p_quit = 0;
+	long my_id = (long)thr_id;
 	int myIndex = 0;
 	int producersPerBuffer = NO_PRODUCERS / NUM_BUFFERS;
 
@@ -198,10 +203,6 @@ void *producer(void *thr_id)
 	}
 
 	
-	int item;
-	int p_quit = 0;
-	long my_id = (long) thr_id;
-
 	if (print_flag)
 	{
 		printf("Pstart 4: tid %ld\n", (long)thr_id);
@@ -218,18 +219,21 @@ void *producer(void *thr_id)
 			{
 				//delay_in_buffer();
 				item = buffers[myIndex].items_sent++;
+
+				if (print_flag)
+					printf("buffers[%d].buf[%d] = %d\n", myIndex, buffers[myIndex].in, item);
 				
-				printf("buffers[%d].buf[%d] = %d\n", myIndex, buffers[myIndex].in, item);
 				buffers[myIndex].buf[buffers[myIndex].in] = item;
 
-				printf("buffers[%d].in = (%d + 1) mod %d (%d)\n", myIndex, buffers[myIndex].in, BUFFER_SIZE, (buffers[myIndex].in + 1) % BUFFER_SIZE);
+				if (print_flag)
+					printf("buffers[%d].in = (%d + 1) mod %d (%d)\n", myIndex, buffers[myIndex].in, BUFFER_SIZE, (buffers[myIndex].in + 1) % BUFFER_SIZE);
+				
 				buffers[myIndex].in = (buffers[myIndex].in + 1) % BUFFER_SIZE;
 				buffers[myIndex].no_elems++;
 				if (print_flag)
 					printf("Producer %ld put number %d in buffer (%d items)\n", (long)thr_id, item, buffers[myIndex].no_elems);
 			}
 		} 
-	
 		else 
 		{
 			p_quit = 1;
@@ -243,10 +247,10 @@ void *producer(void *thr_id)
 	{
 		printf("PBreak 4: tid %ld\n", (long)thr_id);
 	}
-
-	printf("Producer thread %ld is exiting.\n", my_id);
 	
-	pthread_exit(0);
+	sleep(10);
+	printf("Producer %d is ready to be joined.\n", my_id);
+	pthread_exit(NULL);
 }
 
 // Main entry point.
@@ -270,6 +274,11 @@ int main(int argc, char **argv)
 
     printf("Buffer size = %d, Buffer amount = %d, items to send = %d\n", BUFFER_SIZE, NUM_BUFFERS, ITEMS_TO_SEND);
 
+
+	struct timeval start, end;
+	gettimeofday(&start, NULL);
+
+	
 	printf("Creating producer threads.\n");
     // Create the producer threads.
     for(i = 0; i < NO_PRODUCERS; i++)
@@ -291,6 +300,14 @@ int main(int argc, char **argv)
 	}
 
 
+	sleep(10);
+	
+	printf("Joining consumer threads.\n");
+	for (i = 0; i < NO_CONSUMERS; i++)
+	{
+		pthread_join(cons_thrs[i], NULL);
+	}
+
 	printf("Joining producer threads.\n");
     // Wait for all threads to terminate.
     for (i = 0; i < NO_PRODUCERS; i++)
@@ -301,12 +318,16 @@ int main(int argc, char **argv)
 
 		printf("...And this!\n");
 	}
+	
+	
+	gettimeofday(&end, NULL);
 
-	printf("Joining consumer threads.\n");
-    for (i = 0; i < NO_CONSUMERS; i++)
-	{
-		pthread_join(cons_thrs[i], NULL);
-	}
+	unsigned long int start_msec = start.tv_sec * 1000000 + start.tv_usec;
+	unsigned long int end_msec = end.tv_sec * 1000000 + end.tv_usec;
+	unsigned long int diff = end_msec - start_msec;
+	double diff_in_sec = diff / 1000000.0;
+
+	printf("Time: %f", diff_in_sec);
 
 	printf("g_pot: %d \ng_toSend: %d\ng_toReceive: %d\n", g_pot, g_toSend, g_toReceive);
 }

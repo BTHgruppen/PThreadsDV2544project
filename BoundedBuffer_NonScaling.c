@@ -3,13 +3,14 @@
 //==================================================//
 #include <stdio.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 #define BUFFER_SIZE 10
 #define NO_PRODUCERS 16
 #define NO_CONSUMERS 32
 #define KILO 1024
 #define MEGA (KILO*KILO)
-#define ITEMS_TO_SEND 8*MEGA // number of items to pass through the buffer.
+#define ITEMS_TO_SEND 10000000 // number of items to pass through the buffer.
 
 // Structs.
 typedef struct buffer_t
@@ -147,6 +148,9 @@ int main(int argc, char **argv)
 
     printf("Buffer size = %d, items to send = %d\n", BUFFER_SIZE, ITEMS_TO_SEND);
 
+	struct timeval start, end;
+	gettimeofday(&start, NULL);
+
     // Create the producer threads.
     for(i = 0; i < NO_PRODUCERS; i++)
 	{
@@ -169,4 +173,13 @@ int main(int argc, char **argv)
 	{
 		pthread_join(cons_thrs[i], NULL);
 	}
+
+	gettimeofday(&end, NULL);
+
+	unsigned long int start_msec = start.tv_sec * 1000000 + start.tv_usec;
+	unsigned long int end_msec = end.tv_sec * 1000000 + end.tv_usec;
+	unsigned long int diff = end_msec - start_msec;
+	double diff_in_sec = diff / 1000000.0;
+
+	printf("Time: %f", diff_in_sec);
 }
