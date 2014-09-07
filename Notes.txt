@@ -2,11 +2,13 @@
 PTHREADS Buffers
 -------------------------
 
-Size: x
+Size: 10000000
 
-Non-Scaling Buffer: x seconds
+Non-Scaling Buffer: 17.77 seconds
 
-Scaling Buffer: x seconds
+Scaling Buffer 8 threads: 9.88 seconds
+
+Scaling Buffer 1 thread: 19.42 seconds
 
 -------------------------
 
@@ -28,7 +30,8 @@ Parallell Gaussian (8): 5.0890 seconds
 PTHREADS Compile Commands
 -------------------------
 
-mpicc -o buffer BoundedBuffer_Scaling.c -pthread
+gcc -o buffer BoundedBuffer_Scaling.c -pthread
+(Set PRODUCTIONS_LINES to 1 for 1 thread, and set it to 4 to get 8 threads.)
 
 mpicc -o gauss GuassianElimination_Parallell.c -pthread
 

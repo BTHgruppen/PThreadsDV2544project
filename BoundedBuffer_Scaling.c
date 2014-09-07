@@ -2,332 +2,269 @@
 //			   SCALING BOUNDED BUFFER				//
 //==================================================//
 
-/*
-
-[X] static ints for NUM_BUFFERS and BUFFER_SIZE
-[ ] Set the amount of buffers to a sensible number based on NO_PRODUCERS and NO_CONSUMERS
-[ ] Each consumer thread selects an appropriate buffer to use. 
-	If there are 2 buffers and 16 consumers, the first 8 should use buffer 1, and the other 8 buffer 2.
-[ ] Same as previous, but for producers.
-
-
-*/
-
 #include <stdio.h>
-#include <stdlib.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include <unistd.h>
 
-#define NO_PRODUCERS 1 //16
-#define NO_CONSUMERS 1 //32
-#define KILO 1024
-#define MEGA (KILO*KILO)
-#define ITEMS_TO_SEND 800 *KILO // number of items to pass through the buffer.
+// Debug print flag.
 #define DEBUG 1
 
-static int NUM_BUFFERS = 1;
-static int BUFFER_SIZE = 20;
+// Number of production lines to use.
+// [PRODUCER] -> [BUFFER] -> [CONSUMER]
+// Each line will create 2 threads, one for the producer, and one for the consumer.
+// Thus for 4 lines, 8 threads will be executed, and so on.
+#define PRODUCTION_LINES 1
 
+// Size of each individual buffer.
+#define BUFFER_SIZE 10
 
-static pthread_mutex_t g_lock;
-static int g_pot = 0;
-static int g_toSend = 10000;
-static int g_toReceive = 10000;
+// Total number of items to send through the buffers.
+#define ITEMS_TO_SEND 10000000
+#define ITEMS_PER_LINE (ITEMS_TO_SEND / PRODUCTION_LINES)
+static int ITEMS_SENT[PRODUCTION_LINES];
+static int ITEMS_RECIEVED[PRODUCTION_LINES];
 
-
-
-// Structs.
+// Buffer struct.
 typedef struct
 {
-    int in, out;
-    int no_elems;
-    int *buf;
-    pthread_mutex_t lock;
-	int items_sent;
-	int items_received;
-	int items_to_send;
-} buffer_t;
+	int m_input;
+	int m_output;
+	int m_numberOfItems;
+	int m_items[BUFFER_SIZE];
 
-// Variables.
-//static int no_items_sent = 0;
-//static int no_items_recieved = 0;
-static int print_flag = 0;	// 1 = printouts, 0 = no printouts.
-static buffer_t* buffers;
+	// Buffer mutex lock.
+	pthread_mutex_t m_lock;
+} Buffer;
 
-// Buffer initialization.
-void init_buffers(void)
-{
-	printf("Initializing buffers...\n");
-	printf("%d buffers will ne used.\n", NUM_BUFFERS);
-	buffers = malloc(sizeof(buffer_t)* NUM_BUFFERS);
-	int i;
-	for (i = 0; i < NUM_BUFFERS; i++)
-	{
-		buffers[i].buf = malloc(sizeof(BUFFER_SIZE));
-		buffers[i].in = 0;
-		buffers[i].out = 0;
-		buffers[i].no_elems = 0;
-		buffers[i].items_to_send = ITEMS_TO_SEND / NUM_BUFFERS;
-		buffers[i].items_sent = 0;
-		buffers[i].items_received = 0;
-		pthread_mutex_init(&buffers[i].lock, NULL);
-		printf("Buffer %d has been initialized and tasked with sending %d items.\n", i, buffers[i].items_to_send);
-	}
-	pthread_mutex_init(&g_lock, NULL);
-}
+// Create enough buffers to have one per production line.
+static Buffer buffer[PRODUCTION_LINES];
 
-void *miniConsumer(void *thr_id)
-{
-	int quit = 0;
-
-	while (!quit)
-	{
-		pthread_mutex_lock(&g_lock);
-		if (g_toReceive > 0)
-		{
-			if (g_pot > 0)
-			{
-				g_pot--;
-				g_toReceive--;
-			}
-		}
-		else
-		{
-			quit = 1;
-		}
-		pthread_mutex_unlock(&g_lock);
-	}
-}
-
-void *miniProducer(void *thr_id)
-{
-	int quit = 0;
-
-	while (!quit)
-	{
-		pthread_mutex_lock(&g_lock);
-		if (g_toSend > 0)
-		{
-			g_pot++;
-			g_toSend--;
-		}
-		else
-		{
-			quit = 1;
-		}
-		pthread_mutex_unlock(&g_lock);
-	}
-}
-
-// Consumer code.
-void *consumer(void *thr_id)
-{
-	int item;
-	int c_quit = 0;
-	long my_id = (long)thr_id;
-	int myIndex = 0;
-	int consumersPerBuffer = NO_CONSUMERS / NUM_BUFFERS;
-
-
-	long n = (long)thr_id;
-	while (n > consumersPerBuffer)
-	{
-		n -= consumersPerBuffer;
-		myIndex++;
-	}
-
-    
-	if (print_flag)
-	{
-		printf("Cstart 4: tid %ld\n", (long)thr_id);
-	}
-
-	while(!c_quit) 
-	{
-		pthread_mutex_lock(&buffers[myIndex].lock);
-
-		if (buffers[myIndex].items_received < buffers[myIndex].items_to_send)
-		{
-			// check if there is empty buffer places.
-			if (buffers[myIndex].no_elems > 0)
-			{
-				//delay_in_buffer();
-				item = buffers[myIndex].buf[buffers[myIndex].out];
-				buffers[myIndex].out = (buffers[myIndex].out + 1) % BUFFER_SIZE;
-				buffers[myIndex].no_elems--;
-				buffers[myIndex].items_received++;
-
-				if (print_flag)
-				{ 
-					printf("Consumer %ld got number %d from buffer (%d items)\n", (long)thr_id, item, buffers[myIndex].no_elems);
-				}
-			}
-		} 
-		
-		else 
-		{
-			c_quit = 1;
-		}
-		pthread_mutex_unlock(&buffers[myIndex].lock);
-	}
-
-
-	//if (my_id == 0)
-	//	printf("[C0] All done!\n");
-
-
-	if (print_flag)
-	{
-		printf("CBreak 4: tid %ld\n", (long)thr_id);
-	}
-
-	printf("Consumer %d is ready to be joined.\n", my_id);
-	pthread_exit(0);
-}
-
-// Producer code.
-void *producer(void *thr_id)
-{
-	int item;
-	int p_quit = 0;
-	long my_id = (long)thr_id;
-	int myIndex = 0;
-	int producersPerBuffer = NO_PRODUCERS / NUM_BUFFERS;
-
-	long n = (long)thr_id;
-	while (n > producersPerBuffer)
-	{
-		n -= producersPerBuffer;
-		myIndex++;
-	}
-
-	
-	if (print_flag)
-	{
-		printf("Pstart 4: tid %ld\n", (long)thr_id);
-	}
-	
-	while(!p_quit) 
-	{
-		pthread_mutex_lock(&buffers[myIndex].lock);
-
-		if (buffers[myIndex].items_received < buffers[myIndex].items_to_send)
-		{
-			// Check if there is empty buffer places.
-			if (buffers[myIndex].no_elems < BUFFER_SIZE)
-			{
-				//delay_in_buffer();
-				item = buffers[myIndex].items_sent++;
-
-				if (print_flag)
-					printf("buffers[%d].buf[%d] = %d\n", myIndex, buffers[myIndex].in, item);
-				
-				buffers[myIndex].buf[buffers[myIndex].in] = item;
-
-				if (print_flag)
-					printf("buffers[%d].in = (%d + 1) mod %d (%d)\n", myIndex, buffers[myIndex].in, BUFFER_SIZE, (buffers[myIndex].in + 1) % BUFFER_SIZE);
-				
-				buffers[myIndex].in = (buffers[myIndex].in + 1) % BUFFER_SIZE;
-				buffers[myIndex].no_elems++;
-				if (print_flag)
-					printf("Producer %ld put number %d in buffer (%d items)\n", (long)thr_id, item, buffers[myIndex].no_elems);
-			}
-		} 
-		else 
-		{
-			p_quit = 1;
-		}
-
-		pthread_mutex_unlock(&buffers[myIndex].lock);
-		//usleep(10);
-	}
-
-	if (print_flag)
-	{
-		printf("PBreak 4: tid %ld\n", (long)thr_id);
-	}
-	
-	sleep(10);
-	printf("Producer %d is ready to be joined.\n", my_id);
-	pthread_exit(NULL);
-}
-
-// Main entry point.
-int main(int argc, char **argv)
+// ===== BUFFER INITIALIZATION =====
+void InitializeBuffers(void)
 {
 	if (DEBUG)
 	{
-		printf("Debug is active.\n");
-		printf("NO_PRODUCERS: %d\n", NO_PRODUCERS);
-		printf("NO_CONSUMERS: %d\n", NO_CONSUMERS);
-		printf("NUM_BUFFERS: %d\n\n", NUM_BUFFERS);
+		printf("\n(!) Initializing buffers...");
 	}
-	
-    long i;
-    pthread_t prod_thrs[NO_PRODUCERS];
-    pthread_t cons_thrs[NO_CONSUMERS];
-    pthread_attr_t attr;
 
-    init_buffers();
-    pthread_attr_init (&attr);
-
-    printf("Buffer size = %d, Buffer amount = %d, items to send = %d\n", BUFFER_SIZE, NUM_BUFFERS, ITEMS_TO_SEND);
-
-
-	struct timeval start, end;
-	gettimeofday(&start, NULL);
-
-	
-	printf("Creating producer threads.\n");
-    // Create the producer threads.
-    for(i = 0; i < NO_PRODUCERS; i++)
+	int i;
+	for (i = 0; i < PRODUCTION_LINES; i++)
 	{
-		if(pthread_create(&prod_thrs[i], &attr, producer, (void *)i) != 0)
+		buffer[i].m_input = 0;
+		buffer[i].m_output = 0;
+		buffer[i].m_numberOfItems = 0;
+		pthread_mutex_init(&buffer[i].m_lock, NULL);
+	}
+
+	if (DEBUG)
+	{
+		printf(" DONE");
+	}
+}
+
+// ===== PRODUCER CODE =====
+void *Producer(void *p_threadID)
+{
+	int l_item = 0;
+	int l_quit = 0;
+
+	// Individual thread ID.
+	long l_threadID = (long)p_threadID;
+
+	// Item offset, to make unordered threads send the correct item.
+	const int l_itemOffset = ITEMS_PER_LINE * l_threadID;
+
+	if (DEBUG)
+	{
+		printf("\nProducer thread %lu beginning work...", l_threadID);
+	}
+
+	// Producer work loop.
+	while (!l_quit)
+	{
+		// Lock the buffer for safe item adding.
+		pthread_mutex_lock(&buffer[l_threadID].m_lock);
+
+		// Check to see if more items are to be sent.
+		if (ITEMS_SENT[l_threadID] < ITEMS_PER_LINE)
 		{
-			printf("Producer thread creation failed. (t_id: %ld)\n", i);
+			// Check to make sure the buffer is not currently filled.
+			if (buffer[l_threadID].m_numberOfItems < BUFFER_SIZE)
+			{
+				// Add new item and increment counters.
+				l_item = (ITEMS_SENT[l_threadID]++) + l_itemOffset;
+				buffer[l_threadID].m_items[buffer[l_threadID].m_input] = l_item;
+				buffer[l_threadID].m_input = (buffer[l_threadID].m_input + 1) % BUFFER_SIZE;
+				buffer[l_threadID].m_numberOfItems++;
+			}
 		}
-	}
 
-	printf("Creating consumer threads.\n");
-	// Create the consumer threads.
-    for(i = 0; i < NO_CONSUMERS; i++)
-	{
-		if (pthread_create(&cons_thrs[i], &attr, consumer, (void *)i) != 0)
+		else
 		{
-			printf("Consumer thread creation failed. (t_id: %ld)\n", i);
+			l_quit = 1;
 		}
+
+		// Unlock the buffer.
+		pthread_mutex_unlock(&buffer[l_threadID].m_lock);
 	}
 
-
-	sleep(10);
-	
-	printf("Joining consumer threads.\n");
-	for (i = 0; i < NO_CONSUMERS; i++)
+	if (DEBUG)
 	{
-		pthread_join(cons_thrs[i], NULL);
+		printf("\nProducer thread %lu completed.", l_threadID);
 	}
 
-	printf("Joining producer threads.\n");
-    // Wait for all threads to terminate.
-    for (i = 0; i < NO_PRODUCERS; i++)
+	// Exit the thread.
+	pthread_exit(0);
+}
+
+// ===== CONSUMER CODE =====
+void *Consumer(void *p_threadID)
+{
+	int l_item = 0;
+	int l_quit = 0;
+
+	// Individual thread ID.
+	long l_threadID = (long)p_threadID;
+
+	if (DEBUG)
 	{
-		printf("Things go wrong between this...\n");
-
-		pthread_join(prod_thrs[i], NULL);
-
-		printf("...And this!\n");
+		printf("\nConsumer thread %lu beginning work...", l_threadID);
 	}
+
+	// Consumer work loop.
+	while (!l_quit)
+	{
+		// Lock the buffer for safe item removal.
+		pthread_mutex_lock(&buffer[l_threadID].m_lock);
+
+		// Check to see if more items are to be recieved.
+		if (ITEMS_RECIEVED[l_threadID] < ITEMS_PER_LINE)
+		{
+			// Check to make sure the buffer is not currently empty.
+			if (buffer[l_threadID].m_numberOfItems > 0)
+			{
+				// Consume items and increment counters.
+				l_item = buffer[l_threadID].m_items[buffer[l_threadID].m_output];
+				buffer[l_threadID].m_output = (buffer[l_threadID].m_output + 1) % BUFFER_SIZE;
+				buffer[l_threadID].m_numberOfItems--;
+				ITEMS_RECIEVED[l_threadID]++;
+			}
+		}
+
+		else
+		{
+			l_quit = 1;
+		}
+
+		// Unlock the buffer.
+		pthread_mutex_unlock(&buffer[l_threadID].m_lock);
+	}
+
+	if (DEBUG)
+	{
+		printf("\nConsumer thread %lu completed.", l_threadID);
+	}
+
+	// Exit the thread.
+	pthread_exit(0);
+}
+
+// ===== MAIN ENTRYPOINT =====
+int main(int argc, char **argv)
+{
+	printf("\nSCALING BOUNDED BUFFERS");
+
+	if (DEBUG)
+	{
+		printf(" (DEBUG IS ACTIVE)");
+		printf("\nItems to send: %d", ITEMS_TO_SEND);
+		printf("\nBuffer size: %d", BUFFER_SIZE);
+		printf("\nProduction lines: %d", PRODUCTION_LINES);
+		printf("\n(Thats %d items per line)", ITEMS_PER_LINE);
+	}
+
+	// Initialize buffers.
+	InitializeBuffers();
+
+	// Create 2 threads per line, 1 producer and 1 consumer.
+	pthread_t l_producerThreads[PRODUCTION_LINES];
+	pthread_t l_consumerThreads[PRODUCTION_LINES];
+
+	pthread_attr_t l_threadAttributes;
+	pthread_attr_init(&l_threadAttributes);
 	
-	
-	gettimeofday(&end, NULL);
+	// Start timer.
+	struct timeval l_start;
+	struct timeval l_end;
+	gettimeofday(&l_start, NULL);
 
-	unsigned long int start_msec = start.tv_sec * 1000000 + start.tv_usec;
-	unsigned long int end_msec = end.tv_sec * 1000000 + end.tv_usec;
-	unsigned long int diff = end_msec - start_msec;
-	double diff_in_sec = diff / 1000000.0;
+	if (DEBUG)
+	{
+		printf("\n(!) Creating producer threads...");
+	}
 
-	printf("Time: %f", diff_in_sec);
+	// Create the producer threads.
+	long i;
+	for (i = 0; i < PRODUCTION_LINES; i++)
+	{
+		pthread_create(&l_producerThreads[i], &l_threadAttributes, Producer, (void *)i);
+	}
 
-	printf("g_pot: %d \ng_toSend: %d\ng_toReceive: %d\n", g_pot, g_toSend, g_toReceive);
+	if (DEBUG)
+	{
+		printf("\nProducer threads created.");
+		printf("\n(!) Creating consumer threads...");
+	}
+
+	// Create the producer threads.
+	for (i = 0; i < PRODUCTION_LINES; i++)
+	{
+		pthread_create(&l_consumerThreads[i], &l_threadAttributes, Consumer, (void *)i);
+	}
+
+	if (DEBUG)
+	{
+		printf("\nConsumer threads created.");
+		printf("\n(!) Waiting to join threads...");
+	}
+
+	// Wait for both thread groups to finish.
+	for (i = 0; i < PRODUCTION_LINES; i++)
+	{
+		pthread_join(l_producerThreads[i], NULL);
+	}
+
+	if (DEBUG)
+	{
+		printf("\n(!) Producer threads joined.");
+	}
+
+	for (i = 0; i < PRODUCTION_LINES; i++)
+	{
+		pthread_join(l_consumerThreads[i], NULL);
+	}
+
+	if (DEBUG)
+	{
+		printf("\n(!) Consumer threads joined.");
+
+		int l_sumSent = 0;
+		int l_sumRecieved = 0;
+
+		for (i = 0; i < PRODUCTION_LINES; i++)
+		{
+			l_sumSent += ITEMS_SENT[i];
+			l_sumRecieved += ITEMS_RECIEVED[i];
+		}
+
+		printf("\n%d total items sent, and %d total items recieved.", l_sumSent, l_sumRecieved);
+	}
+
+	// Stop the timer.
+	gettimeofday(&l_end, NULL);
+	unsigned long int l_startMSec = l_start.tv_sec * 1000000 + l_start.tv_usec;
+	unsigned long int l_endMSec = l_end.tv_sec * 1000000 + l_end.tv_usec;
+	unsigned long int l_difference = l_endMSec - l_startMSec;
+	double l_differenceInSeconds = l_difference / 1000000.0;
+	printf("\n(!) Time taken to send %d items: %f seconds.\n", ITEMS_TO_SEND, l_differenceInSeconds);
 }
