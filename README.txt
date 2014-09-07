@@ -5,11 +5,9 @@ PTHREADS PROJECT
 --------------------------------------------------
 
 ==================================================
-Tasks:
+COMPLETED
 ==================================================
 --------------------------------------------------
-1. Implement a scalable bounded buffer using pthreads.
-
-Notes on how to compile the files can be found in Notes.txt
+Notes on how to compile the files can be found in "Notes.txt"
 
 --------------------------------------------------
